@@ -258,10 +258,16 @@ async def repl(session: BrowserSession) -> None:
                 await loc.scroll_into_view_if_needed(timeout=5000)
                 await loc.click(timeout=8000)
                 note = await session.type_text(loc, value)  # тем же кодом, что у агента
+                try:
+                    # До Enter: поиск уводит на новую страницу, поля там уже нет,
+                    # и чтение значения после Enter висело 15 с и падало.
+                    shown = await loc.input_value(timeout=2000)
+                except Exception:
+                    shown = "?"
                 if cmd == "enter":
                     await loc.press("Enter")
                 await session.settle()
-                print(f"ввод в [{ref}]: {value!r}; в поле: {await loc.input_value()!r}")
+                print(f"ввод в [{ref}]: {value!r}; в поле: {shown!r}")
                 if note:
                     print(note.strip())
                 report_dialogs(session)
