@@ -1,0 +1,9 @@
+profiles/
+.env
+__pycache__/
+*.pyc
+runs/
+venv/
+.pytest_cache/
+.DS_Store
+TASK.md
