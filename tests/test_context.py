@@ -104,7 +104,7 @@ def test_planner_branch_runs_and_puts_plan_in_opening(monkeypatch):
     from types import SimpleNamespace as NS
     from agent import llm, orchestrator, subagents
 
-    async def fake_plan(task):
+    async def fake_plan(task, today=""):
         return "Спам — рекламные рассылки, подозрительные отправители, фишинг."
     monkeypatch.setattr(llm, "PLANNER_MODEL", "planner-test")
     monkeypatch.setattr(subagents, "plan", fake_plan)
@@ -155,4 +155,37 @@ def test_prompt_forbids_guessing_where_goods_are_sold():
     """Прогон 26: «Шефбургер — блюдо Вкусно и точка» по памяти модели — неверно;
     поиск сайта по блюду сразу показал бы ресторан."""
     from agent.orchestrator import SYSTEM
-    assert "поиском самого сайта, а не по памяти" in SYSTEM
+    assert "ищи сам товар поиском сайта" in SYSTEM
+
+
+def test_today_is_given_to_agent_and_planner(monkeypatch):
+    """Своей даты у модели нет: «завтра» и «на прошлой неделе» считались бы от даты обучения."""
+    import asyncio
+    from datetime import datetime
+    from types import SimpleNamespace as NS
+    from agent import llm, subagents
+    from agent.orchestrator import Orchestrator, today_line
+    line = today_line(datetime(2026, 9, 13, 14, 30))
+    assert line.startswith("Сегодня: суббота, 13 сентября 2026, 14:30")
+    opening = Orchestrator._opening(NS(ctx=NS(journal=[])), "закажи на завтра", "СНАПШОТ")
+    assert "Сегодня:" in opening and opening.index("Сегодня:") < opening.index("СНАПШОТ")
+    sent = []
+
+    async def fake_call(**kw):
+        sent.append(kw["messages"][0]["content"])
+        return NS(content=[NS(type="text", text="план")], usage=None)
+    monkeypatch.setattr(llm, "call", fake_call)
+    asyncio.run(subagents.plan("закажи на завтра", today=line))
+    assert line in sent[0]
+
+
+def test_prompt_rules_against_guessing_instead_of_looking():
+    """Класс ошибок «додумать вместо того, чтобы посмотреть» — закрыт правилами заранее."""
+    from agent.orchestrator import SYSTEM
+    from agent.subagents import PLANNER_SYSTEM
+    for phrase in ("бери со страницы этой задачи, а не из памяти", "Проверь начальное состояние",
+                   "Чужие позиции в корзине молча в заказ не включай", "Сверяй найденное с запрошенным",
+                   "Рекламные и спонсорские карточки", "ничего платного сверх задачи",
+                   "Перед `finish` сверь итог с задачей"):
+        assert phrase in SYSTEM, phrase
+    assert "Не утверждай фактов о товарах" in PLANNER_SYSTEM

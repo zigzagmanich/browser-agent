@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+from datetime import datetime
 from pathlib import Path
 
 from agent import llm, subagents
@@ -24,6 +25,20 @@ from agent.runlog import RunLog
 from agent.tools import TOOLS, Finished, Toolbox
 
 SYSTEM = (Path(__file__).parent.parent / "prompts" / "orchestrator.md").read_text(encoding="utf-8")
+
+
+_WEEKDAYS = ("понедельник", "вторник", "среда", "четверг", "пятница", "суббота", "воскресенье")
+_MONTHS = ("января", "февраля", "марта", "апреля", "мая", "июня", "июля", "августа",
+           "сентября", "октября", "ноября", "декабря")
+
+
+def today_line(now: datetime | None = None) -> str:
+    """Сегодняшняя дата для модели. Своей даты у модели нет — она считает от
+    даты обучения, и «завтра», «на выходных», «на прошлой неделе» уехали бы на
+    месяцы. Время — компьютера пользователя."""
+    now = now or datetime.now()
+    return (f"Сегодня: {_WEEKDAYS[now.weekday()]}, {now.day} {_MONTHS[now.month - 1]} {now.year}, "
+            f"{now:%H:%M} (время компьютера пользователя). Относительные даты задачи считай от неё.")
 
 
 def _budget_note(step: int, max_steps: int) -> str:
@@ -68,7 +83,7 @@ class Orchestrator:
         )
 
     def _opening(self, task: str, snapshot: str, plan: str = "") -> str:
-        text = f"ЗАДАЧА ПОЛЬЗОВАТЕЛЯ:\n{task}\n\n"
+        text = f"ЗАДАЧА ПОЛЬЗОВАТЕЛЯ:\n{task}\n\n{today_line()}\n\n"
         # Критерии от планировщика — в самой задаче, а не в общих правилах
         # промпта: общее правило про оценочные слова Sonnet пропускал пять раз.
         if plan:
@@ -117,7 +132,7 @@ class Orchestrator:
         if llm.PLANNER_MODEL:
             self.ui.subagent("planner", task[:80])
             try:
-                plan = await subagents.plan(task)
+                plan = await subagents.plan(task, today=today_line())
             except Exception as e:
                 # Без плана агент работает как раньше — это не повод падать.
                 self.ui.info(f"планировщик недоступен: {e.__class__.__name__}")
