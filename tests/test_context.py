@@ -149,3 +149,10 @@ def test_chunk_text_covers_everything_with_overlap():
     for a, b in zip(chunks, chunks[1:]):
         assert a[-200:] == b[:200], "стык перекрыт"
     assert chunk_text("коротко") == ["коротко"]
+
+
+def test_prompt_forbids_guessing_where_goods_are_sold():
+    """Прогон 26: «Шефбургер — блюдо Вкусно и точка» по памяти модели — неверно;
+    поиск сайта по блюду сразу показал бы ресторан."""
+    from agent.orchestrator import SYSTEM
+    assert "поиском самого сайта, а не по памяти" in SYSTEM
