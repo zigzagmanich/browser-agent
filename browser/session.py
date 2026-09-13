@@ -497,8 +497,19 @@ class BrowserSession:
         «открыть вкладку — прочитать — закрыть и вернуться», а снапшот чужой
         страницы оседает в его контексте.
         """
+        text = await self._read_in_tab(url, timeout, background=True)
+        if len(text.strip()) < 300:
+            # Фоновая вкладка «скрыта», и страница, которая рисует содержимое
+            # по requestAnimationFrame, может остаться в ней пустой. Тогда —
+            # как раньше, вкладкой на переднем плане: окно поднимется, зато
+            # текст будет. Чтение ссылки не должно стать хуже ради фокуса окна.
+            text = await self._read_in_tab(url, timeout, background=False)
+        return text
+
+    async def _read_in_tab(self, url: str, timeout: float, background: bool) -> str:
         active = self.page
-        page = await self._open_background_tab()  # _on_new_page сделает её активной
+        # _on_new_page сделает новую вкладку активной — в finally вернём прежнюю
+        page = await self._open_background_tab() if background else await self.context.new_page()
         try:
             await page.goto(url, wait_until="domcontentloaded", timeout=timeout * 1000)
             try:
