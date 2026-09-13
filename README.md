@@ -63,7 +63,7 @@
 Нужен Python 3.11+ и ключ Anthropic API.
 
 ```bash
-python3 -m venv venv
+python3 -m venv venv                # Windows: python -m venv venv
 source venv/bin/activate            # Windows: venv\Scripts\activate
 pip install -r requirements.txt
 playwright install chromium
