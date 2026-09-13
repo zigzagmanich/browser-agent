@@ -62,12 +62,36 @@
 
 Нужен Python 3.11+ и ключ Anthropic API.
 
+Все команды ниже выполняются в терминале **из папки проекта**. Скачайте проект и перейдите в его папку:
+
+```bash
+git clone https://github.com/zigzagmanich/browser-agent.git
+cd browser-agent
+```
+
+Если проект скачан архивом, распакуйте его и перейдите в папку командой `cd путь/к/browser-agent` — или откройте терминал прямо в ней: на macOS — правый клик по папке → «Службы» → «Новый терминал по адресу папки», на Windows — `Shift` + правый клик → «Открыть в терминале».
+
 ```bash
 python3 -m venv venv                # Windows: python -m venv venv
 source venv/bin/activate            # Windows: venv\Scripts\activate
 pip install -r requirements.txt
 playwright install chromium
-cp .env.example .env                # вписать ANTHROPIC_API_KEY
+cp .env.example .env                # Windows: copy .env.example .env
+```
+
+**Ключ API.** Команда `cp` создала в папке проекта файл `.env` — это обычный текстовый файл с настройками. Ключ нужно вписать в него:
+
+1. Получите ключ на [console.anthropic.com](https://console.anthropic.com) → **API Keys** → **Create Key**. Он выглядит как `sk-ant-…`; скопируйте его сразу — второй раз сайт его не покажет.
+2. Откройте `.env` в любом текстовом редакторе (VS Code, TextEdit, Блокнот). Файл начинается с точки, поэтому в Finder он может быть скрыт — покажите скрытые файлы сочетанием `Cmd` + `Shift` + `.` или откройте из редактора.
+3. Найдите первую строку — `ANTHROPIC_API_KEY=sk-ant-...` — и замените `sk-ant-...` своим ключом. Без кавычек и пробелов:
+   ```
+   ANTHROPIC_API_KEY=sk-ant-api03-ваш-ключ
+   ```
+4. Сохраните файл. Больше ничего менять не нужно: модели по умолчанию уже заданы. Файл `.env` в git не попадает, ключ остаётся только у вас.
+
+Теперь запуск — из той же папки, с активированным `venv`:
+
+```bash
 python main.py
 ```
 
