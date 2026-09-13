@@ -206,3 +206,8 @@ def test_open_choice_goes_to_the_human():
     import re
     nums = [int(n) for n in re.findall(r"^(\d+)\. \*\*", SYSTEM, re.M)]
     assert nums == list(range(1, 14)), nums
+
+
+def test_prompt_prefers_role_over_label():
+    from agent.orchestrator import SYSTEM
+    assert "Выбирай элемент по роли, а не по похожей подписи" in SYSTEM

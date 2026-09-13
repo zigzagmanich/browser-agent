@@ -191,7 +191,9 @@ TOOLS: list[dict] = [
             "Прочитать страницу по ссылке, не уходя с текущей: под-агент откроет её в "
             "фоне, ответит на вопрос по её тексту и закроет. Один шаг вместо «открыть — "
             "прочитать — вернуться», и снапшот чужой страницы не засоряет контекст. Для "
-            "проверки деталей записей из списка. ref — ссылка из текущего снапшота."
+            "проверки деталей записей из списка. ref — элемент с адресом (href) или запись с "
+            "одной ссылкой внутри. Строки без ссылки — письма в ящике, карточки-кнопки — так не "
+            "открыть: для них click, затем read_page."
         ),
         "input_schema": {
             "type": "object",
@@ -373,6 +375,18 @@ class Toolbox:
             if h == host and p == path:
                 return link
         return None
+
+    async def _live(self, ref: str):
+        """Локатор элемента, который ещё на странице. Живые приложения
+        перерисовывают список сами (пришло новое письмо) — элемента из снапшота
+        уже нет, а клик ждал его 8 с и запасной клик ещё 15 (прогон 29)."""
+        loc = self._locator(ref)
+        if await loc.count() == 0:
+            raise ToolError(
+                f"элемента [{ref}] уже нет: страница перерисовалась сама (например, пришли новые "
+                "данные). Сделай snapshot и возьми актуальный номер."
+            )
+        return loc
 
     def _locator(self, ref: str):
         frame = self._ref_frames.get(str(ref))
@@ -589,7 +603,7 @@ class Toolbox:
         return await self.take_snapshot()
 
     async def _t_click(self, a: dict):
-        loc = self._locator(a["ref"])
+        loc = await self._live(a["ref"])
         before_url = self.s.page.url
         try:
             await loc.scroll_into_view_if_needed(timeout=4000)
@@ -608,14 +622,14 @@ class Toolbox:
                 pass
             else:
                 # Элемент перехвачен оверлеем — пробуем программный клик.
-                await loc.evaluate("el => el.click()")
+                await loc.evaluate("el => el.click()", timeout=3000)
         await self.s.settle()
         changed = self.s.page.url != before_url
         note = f"Клик выполнен. URL {'изменился на ' + self.s.page.url if changed else 'тот же'}."
         return note + "\n\n" + await self.take_snapshot()
 
     async def _t_type_text(self, a: dict):
-        loc = self._locator(a["ref"])
+        loc = await self._live(a["ref"])
         await loc.scroll_into_view_if_needed(timeout=4000)
         await loc.click(timeout=6000)
         note = await self.s.type_text(loc, a["text"], clear=a.get("clear", True))
@@ -632,12 +646,12 @@ class Toolbox:
         )
 
     async def _t_hover(self, a: dict):
-        await self._locator(a["ref"]).hover(timeout=6000)
+        await (await self._live(a["ref"])).hover(timeout=6000)
         await asyncio.sleep(0.4)  # меню раскрываются с анимацией
         return "Курсор наведён.\n\n" + await self.take_snapshot()
 
     async def _t_select_option(self, a: dict):
-        loc = self._locator(a["ref"])
+        loc = await self._live(a["ref"])
         await loc.select_option(label=a["label"], timeout=6000)
         await self.s.settle()
         return f"Выбрано: {a['label']}\n\n" + await self.take_snapshot()

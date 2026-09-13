@@ -655,3 +655,43 @@ def test_read_link_accepts_record_ref_with_single_link(tmp_path, monkeypatch):
             assert read == ["https://example.test/vacancy/7"], out
             assert "ОШИБКА" not in out
     asyncio.run(go())
+
+
+
+# ---------- строка списка: отметка против звёздочки; исчезнувший элемент ----------
+
+def test_nameless_row_checkbox_is_labeled_as_record_selection(tmp_path):
+    """Прогон 29: безымянная отметка строки и звёздочка «Не помечено» рядом —
+    модель выбрала звёздочку. Отметка записи подписана «выбор записи»."""
+    page = """<table><tr role="row" style="cursor:pointer">
+      <td><div role="checkbox" aria-checked="false" tabindex="0" style="width:20px;height:20px"></div></td>
+      <td><span role="button" aria-label="Не помечено" style="display:inline-block;width:20px;height:20px"></span></td>
+      <td>Сервис, Обновления продукта, 12 сент.</td></tr></table>"""
+
+    async def go():
+        async with real_browser(tmp_path) as s:
+            await s.page.set_content(page)
+            nodes, _, _ = await s.index_elements()
+            box = [n for n in nodes if n["type"] == "element" and n["attrs"].get("role") == "checkbox"]
+            assert box and box[0]["name"] == "выбор записи" and box[0]["attrs"].get("checked") == "false", box
+            assert any(n.get("name") == "Не помечено" for n in nodes if n["type"] == "element")
+    asyncio.run(go())
+
+
+def test_click_on_element_gone_after_rerender_fails_fast(tmp_path):
+    """Список перерисовался сам — элемента из снапшота нет. Раньше клик ждал
+    8 с, запасной клик ещё 15, и ошибка не говорила, в чём дело."""
+    import time
+
+    async def go():
+        async with real_browser(tmp_path) as s:
+            await s.page.set_content("<ul><li><button>Письмо один</button></li></ul>")
+            tb = Toolbox(s, ConversationContext(), AllowGate(), StubUI())
+            await tb.take_snapshot()
+            ref = next(r for r, n in tb._ref_info.items() if n.get("name") == "Письмо один")
+            await s.page.evaluate("document.querySelector('ul').innerHTML = '<li><button>Письмо один</button></li>'")
+            t0 = time.monotonic()
+            out = await tb.run("click", {"ref": ref, "why": "открыть"})
+            assert time.monotonic() - t0 < 3, "без ожидания таймаутов"
+            assert "перерисовалась" in out and "snapshot" in out, out[:200]
+    asyncio.run(go())
