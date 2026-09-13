@@ -189,3 +189,20 @@ def test_prompt_rules_against_guessing_instead_of_looking():
                    "Перед `finish` сверь итог с задачей"):
         assert phrase in SYSTEM, phrase
     assert "Не утверждай фактов о товарах" in PLANNER_SYSTEM
+
+
+def test_open_choice_goes_to_the_human():
+    """Прогон 27: «шефбургер, картофель фри средний и колу» — агент прочитал первый
+    ресторан из выдачи и собрал заказ там, назвав его «единственным». Прогон 28:
+    «забронируй отель» — из 6 подходящих выбрал сам. Открытый выбор — человеку."""
+    from agent.orchestrator import SYSTEM
+    from agent.subagents import PLANNER_SYSTEM
+    assert "Открытый выбор — человеку" in SYSTEM
+    assert "Сравни весь список, а не первую карточку" in SYSTEM
+    assert "задача оставила открытым выбор места или варианта" in SYSTEM
+    assert "«единственный», «все», «лучший»" in SYSTEM
+    assert "Открытые выборы" in PLANNER_SYSTEM and "саму сеть не называй" in PLANNER_SYSTEM
+    # нумерация правил не сломана: 1..13 по порядку
+    import re
+    nums = [int(n) for n in re.findall(r"^(\d+)\. \*\*", SYSTEM, re.M)]
+    assert nums == list(range(1, 14)), nums
