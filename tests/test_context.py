@@ -166,7 +166,7 @@ def test_today_is_given_to_agent_and_planner(monkeypatch):
     from agent import llm, subagents
     from agent.orchestrator import Orchestrator, today_line
     line = today_line(datetime(2026, 9, 13, 14, 30))
-    assert line.startswith("Сегодня: суббота, 13 сентября 2026, 14:30")
+    assert line.startswith("Сегодня: воскресенье, 13 сентября 2026, 14:30")
     opening = Orchestrator._opening(NS(ctx=NS(journal=[])), "закажи на завтра", "СНАПШОТ")
     assert "Сегодня:" in opening and opening.index("Сегодня:") < opening.index("СНАПШОТ")
     sent = []
