@@ -225,8 +225,39 @@ class BrowserSession:
         await target.close()
         remaining = self.tabs()
         self.page = remaining[-1]
-        await self.page.bring_to_front()
+        await self._show(self.page)
         return self.page
+
+    async def _show(self, page: Page) -> None:
+        """Сделать вкладку видимой, не поднимая окно браузера без нужды.
+
+        bring_to_front поднимает окно Chrome поверх всех остальных: человек
+        терял терминал при каждом переключении вкладок и после каждого
+        read_link. Вкладка уже выбрана в окне — не трогаем окно вовсе.
+        (С флагами Playwright выбранная вкладка остаётся «visible», даже когда
+        окно закрыто терминалом.)"""
+        try:
+            if await page.evaluate("document.visibilityState") == "visible":
+                return
+        except Exception:
+            pass
+        await page.bring_to_front()
+
+    async def _open_background_tab(self) -> Page:
+        """Вкладка для фонового чтения — действительно в фоне. new_page()
+        создаёт вкладку на переднем плане, и Chrome поднимал своё окно; CDP
+        Target.createTarget с background=true — нет. Не вышло — как раньше."""
+        try:
+            cdp = await self.context.new_cdp_session(self.page)
+            try:
+                async with self.context.expect_page(timeout=5000) as info:
+                    await cdp.send("Target.createTarget", {"url": "about:blank", "background": True})
+                return await info.value
+            finally:
+                with contextlib.suppress(Exception):
+                    await cdp.detach()
+        except Exception:
+            return await self.context.new_page()
 
     async def can_go_back(self) -> bool:
         """Есть ли куда возвращаться. У свежей вкладки истории нет."""
@@ -244,7 +275,7 @@ class BrowserSession:
         if not 0 <= index < len(pages):
             raise IndexError(f"Вкладки {index} нет. Открыто вкладок: {len(pages)}")
         self.page = pages[index]
-        await self.page.bring_to_front()
+        await self._show(self.page)
         return self.page
 
     async def type_text(self, loc, text: str, clear: bool = True) -> str:
@@ -467,7 +498,7 @@ class BrowserSession:
         страницы оседает в его контексте.
         """
         active = self.page
-        page = await self.context.new_page()  # _on_new_page сделает её активной
+        page = await self._open_background_tab()  # _on_new_page сделает её активной
         try:
             await page.goto(url, wait_until="domcontentloaded", timeout=timeout * 1000)
             try:
@@ -479,7 +510,7 @@ class BrowserSession:
             await page.close()
             self.page = active  # вернуть активную вкладку, которую агент видит
             try:
-                await active.bring_to_front()
+                await self._show(active)
             except Exception:
                 pass
 
